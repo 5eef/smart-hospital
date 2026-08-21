@@ -30,6 +30,25 @@ class BackendHardeningTest extends TestCase
         $this->getJson('/api')->assertNotFound();
     }
 
+    public function test_cors_allows_configured_frontend_and_rejects_unknown_origin(): void
+    {
+        $preflightHeaders = [
+            'Origin' => 'http://localhost:5173',
+            'Access-Control-Request-Method' => 'GET',
+        ];
+
+        $this->withHeaders($preflightHeaders)->options('/api/health')
+            ->assertNoContent()
+            ->assertHeader('Access-Control-Allow-Origin', 'http://localhost:5173');
+
+        $this->withHeaders([
+            ...$preflightHeaders,
+            'Origin' => 'https://malicious.example',
+        ])->options('/api/health')
+            ->assertNoContent()
+            ->assertHeaderMissing('Access-Control-Allow-Origin');
+    }
+
     public function test_public_registration_can_only_create_a_patient_and_never_exposes_password(): void
     {
         $this->ensureRoles();
@@ -87,6 +106,9 @@ class BackendHardeningTest extends TestCase
 
     public function test_authentication_active_account_and_role_boundaries_are_enforced(): void
     {
+        $this->get('/api/auth/me')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Unauthenticated.');
         $this->getJson('/api/profile')->assertUnauthorized();
         $this->getJson('/api/notifications')->assertUnauthorized();
         $this->getJson('/api/admin/profile-change-requests')->assertUnauthorized();

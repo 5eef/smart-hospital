@@ -30,6 +30,16 @@ return new class extends Migration
 
     public function down(): void
     {
+        // MySQL may remove a redundant single-column index when a composite
+        // index with the same leading column is added. Recreate the indexes
+        // required by foreign keys before dropping the composite/unique ones.
+        $this->ensureForeignKeyIndex('medical_records', 'doctor_id');
+        $this->ensureForeignKeyIndex('appointments', 'doctor_id');
+        $this->ensureForeignKeyIndex('appointments', 'patient_id');
+        $this->ensureForeignKeyIndex('patients', 'user_id');
+        $this->ensureForeignKeyIndex('doctors', 'user_id');
+        $this->ensureForeignKeyIndex('doctors', 'department_id');
+
         Schema::table('medical_records', function (Blueprint $table) {
             $table->dropIndex(['doctor_id', 'patient_id']);
         });
@@ -47,6 +57,19 @@ return new class extends Migration
         Schema::table('doctors', function (Blueprint $table) {
             $table->dropUnique(['user_id']);
             $table->dropIndex(['department_id', 'status']);
+        });
+    }
+
+    private function ensureForeignKeyIndex(string $tableName, string $column): void
+    {
+        $indexName = "{$tableName}_{$column}_foreign";
+
+        if (Schema::hasIndex($tableName, $indexName)) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) use ($column, $indexName) {
+            $table->index($column, $indexName);
         });
     }
 };

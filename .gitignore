@@ -2,6 +2,7 @@
 backend/.env
 backend/.env.*
 !backend/.env.example
+.env.production
 
 # PHP / Laravel generated files
 backend/vendor/
@@ -22,6 +23,7 @@ backend/storage/framework/views/*
 # JavaScript generated files
 frontend/node_modules/
 frontend/dist/
+frontend/coverage/
 frontend/.env.local
 frontend/.env.*.local
 

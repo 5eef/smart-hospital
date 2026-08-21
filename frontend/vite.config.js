@@ -7,4 +7,15 @@ export default defineConfig({
   server: {
     port: 5173,
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    coverage: {
+      reporter: ['text', 'json-summary'],
+      include: [
+        'src/utils/**/*.js',
+        'src/components/ui/{Pagination,StatusBadge,ThemeToggle}.jsx',
+      ],
+    },
+  },
 })

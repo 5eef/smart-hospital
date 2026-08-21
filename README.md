@@ -105,7 +105,7 @@ Le dossier [`docs/`](docs/) contient le cahier des charges ainsi que les maquett
 ## Auteur
 
 **Youssef Bough** — Développeur full-stack  
-Pseudo : [Seef590](mailto:bough.youssef@gmail.com)  
+Pseudo : [5eef](mailto:bough.youssef@gmail.com)  
 Contact : [bough.youssef@gmail.com](mailto:bough.youssef@gmail.com)
 
 Ce projet fait partie de mon portfolio et illustre ma capacité à concevoir une application métier complète, de l'interface utilisateur à l'API sécurisée et à la modélisation des données.
