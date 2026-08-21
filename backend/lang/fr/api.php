@@ -31,6 +31,7 @@ return [
         'read' => 'Notification marquée comme lue.',
         'read_all' => 'Toutes les notifications ont été marquées comme lues.',
     ],
+    'not_provided' => 'Non renseigné',
     'statuses' => [
         'pending' => 'en attente',
         'confirmed' => 'confirmé',

@@ -1,0 +1,50 @@
+import { Mail, Phone, Save, ShieldCheck, User } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ActionNotice } from '../../components/ui/ActionNotice'
+import { Avatar } from '../../components/ui/Avatar'
+import { Button } from '../../components/ui/Button'
+import { PageHeader } from '../../components/ui/PageHeader'
+import { useActionNotice } from '../../hooks/useActionNotice'
+import { useAuth } from '../../hooks/useAuth'
+import { api } from '../../services/api'
+import { apiError } from '../../utils/formatters'
+
+const roleLabels = { admin: 'Administrateur', doctor: 'Médecin' }
+
+export function AccountProfilePage() {
+  const { user, updateProfile } = useAuth()
+  const [form, setForm] = useState({ name: user?.name ?? '', phone: user?.phone ?? '', locale: user?.locale ?? 'fr' })
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState('')
+  const { message, notify, clear } = useActionNotice()
+
+  useEffect(() => {
+    let active = true
+    api.get('/profile').then(({ data }) => {
+      if (!active) return
+      setForm({ name: data.user?.name ?? '', phone: data.user?.phone ?? '', locale: data.user?.locale ?? 'fr' })
+    }).catch((requestError) => {
+      if (active) setError(apiError(requestError, 'Impossible de charger le profil.'))
+    }).finally(() => {
+      if (active) setIsLoading(false)
+    })
+    return () => { active = false }
+  }, [])
+
+  async function save(event) {
+    event.preventDefault()
+    setIsSaving(true)
+    setError('')
+    try {
+      const data = await updateProfile(form)
+      notify(data.status === 'pending' ? 'Demande de modification envoyée pour approbation.' : 'Profil mis à jour.')
+    } catch (requestError) {
+      setError(apiError(requestError, 'Impossible de mettre à jour le profil.'))
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return <div className="mx-auto max-w-4xl page-stack"><ActionNotice message={message} onClose={clear} /><PageHeader title="Mon profil" description="Gardez vos informations personnelles à jour." />{error ? <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-700">{error}</p> : null}<section className="panel overflow-hidden"><div className="flex items-center gap-4 bg-gradient-to-r from-blue-700 to-blue-500 p-6 text-white"><Avatar name={user?.name} size="lg" /><div><h3 className="text-xl font-bold">{user?.name}</h3><p className="text-blue-100">Espace {roleLabels[user?.role] || user?.role} SmartHôpital</p></div></div>{isLoading ? <p className="muted p-6">Chargement...</p> : <form onSubmit={save} className="grid gap-5 p-5 sm:grid-cols-2 sm:p-6"><label className="field-label"><span className="flex items-center gap-2"><User size={17} />Nom</span><input required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} className="field" /></label><label className="field-label"><span className="flex items-center gap-2"><Phone size={17} />Téléphone</span><input value={form.phone || ''} onChange={(event) => setForm({ ...form, phone: event.target.value })} className="field" /></label><label className="field-label"><span className="flex items-center gap-2"><Mail size={17} />Email</span><input value={user?.email ?? ''} readOnly className="field panel-muted" /></label><label className="field-label"><span className="flex items-center gap-2"><ShieldCheck size={17} />Langue</span><select value={form.locale} onChange={(event) => setForm({ ...form, locale: event.target.value })} className="field"><option value="fr">Français</option><option value="en">English</option><option value="ar">العربية</option></select></label><div className="sm:col-span-2"><Button type="submit" disabled={isSaving}><Save size={18} />{isSaving ? 'Enregistrement...' : user?.role === 'admin' ? 'Enregistrer' : 'Envoyer la demande'}</Button></div></form>}</section></div>
+}

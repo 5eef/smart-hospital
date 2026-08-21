@@ -17,6 +17,7 @@ import { PatientAppointmentPage } from '../features/patient/pages/PatientAppoint
 import { PatientAppointmentsPage } from '../features/patient/pages/PatientAppointmentsPage'
 import { PatientMedicalRecordPage } from '../features/patient/pages/PatientMedicalRecordPage'
 import { PatientProfilePage } from '../features/patient/pages/PatientProfilePage'
+import { AccountProfilePage } from '../features/profile/AccountProfilePage'
 import { AppLayout } from '../components/layout/AppLayout'
 import { ProtectedRoute } from './ProtectedRoute'
 
@@ -37,6 +38,7 @@ export const router = createBrowserRouter([
           { path: 'specialties', element: <AdminSpecialtiesPage /> },
           { path: 'appointments', element: <AdminAppointmentsPage /> },
           { path: 'statistics', element: <AdminStatisticsPage /> },
+          { path: 'profile', element: <AccountProfilePage /> },
         ],
       },
     ],
@@ -52,6 +54,7 @@ export const router = createBrowserRouter([
           { path: 'consultations', element: <DoctorConsultationsPage /> },
           { path: 'patients', element: <DoctorPatientsPage /> },
           { path: 'appointments', element: <DoctorAppointmentsPage /> },
+          { path: 'profile', element: <AccountProfilePage /> },
         ],
       },
     ],

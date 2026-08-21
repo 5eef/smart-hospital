@@ -31,6 +31,7 @@ return [
         'read' => 'Notification marked as read.',
         'read_all' => 'All notifications were marked as read.',
     ],
+    'not_provided' => 'Not provided',
     'statuses' => [
         'pending' => 'pending',
         'confirmed' => 'confirmed',

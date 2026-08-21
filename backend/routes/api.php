@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminProfileChangeRequestController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ClinicalOrderController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\ProfileController;
@@ -37,6 +38,11 @@ Route::middleware(['auth:sanctum', 'active', 'locale'])->group(function () {
     Route::get('/notifications/unread', [NotificationController::class, 'unread']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'readAll']);
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead'])->whereNumber('notification');
+
+    Route::get('/clinical-orders', [ClinicalOrderController::class, 'index']);
+    Route::post('/clinical-orders', [ClinicalOrderController::class, 'store']);
+    Route::get('/clinical-orders/{clinicalOrder}', [ClinicalOrderController::class, 'show'])->whereNumber('clinicalOrder');
+    Route::put('/clinical-orders/{clinicalOrder}', [ClinicalOrderController::class, 'update'])->whereNumber('clinicalOrder');
 
     Route::prefix('admin')->middleware('role:admin')->group(function () {
         Route::get('/profile-change-requests', [AdminProfileChangeRequestController::class, 'index']);

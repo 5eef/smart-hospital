@@ -142,7 +142,7 @@ class ResourceController extends Controller
 
     public function destroy(Request $request, string $model, int $id): JsonResponse
     {
-        $this->authorizeWrite($request, $model);
+        abort_unless($request->user()->role?->name === 'admin', 403, __('api.access_denied'));
         $record = $this->baseQuery($request, $model)->findOrFail($id);
         DB::transaction(function () use ($record, $model) {
             if (in_array($model, ['doctors', 'patients'], true)) {

@@ -6,4 +6,6 @@ return [
     'profile_change_rejected' => ['title' => 'Change rejected', 'message' => 'Your request was rejected. Reason: :reason'],
     'appointment_created' => ['title' => 'New appointment', 'message' => 'An appointment is scheduled for :date in :department.'],
     'appointment_updated' => ['title' => 'Appointment updated', 'message' => 'The appointment on :date is now :status.'],
+    'laboratory_order_created' => ['title' => 'New laboratory order', 'message' => 'Dr :doctor requested the “:exam” examination.'],
+    'imaging_order_created' => ['title' => 'New imaging order', 'message' => 'Dr :doctor requested the “:exam” examination.'],
 ];

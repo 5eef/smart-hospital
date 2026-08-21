@@ -38,6 +38,15 @@ export function AuthProvider({ children }) {
     }
   }, [])
 
+  useEffect(() => {
+    const clearExpiredSession = () => {
+      setUser(null)
+      setIsLoading(false)
+    }
+    window.addEventListener('smart-hospital:unauthorized', clearExpiredSession)
+    return () => window.removeEventListener('smart-hospital:unauthorized', clearExpiredSession)
+  }, [])
+
   const login = useCallback(async (credentials) => {
     setIsLoading(true)
     try {
@@ -66,9 +75,11 @@ export function AuthProvider({ children }) {
 
   const updateProfile = useCallback(async (payload) => {
     const data = await authService.updateProfile(payload)
-    localStorage.setItem('smartHospitalUser', JSON.stringify(data.user))
-    setUser(data.user)
-    return data.user
+    if (data.user) {
+      localStorage.setItem('smartHospitalUser', JSON.stringify(data.user))
+      setUser(data.user)
+    }
+    return data
   }, [])
 
   const logout = useCallback(async () => {

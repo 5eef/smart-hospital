@@ -17,3 +17,15 @@ api.interceptors.request.use((config) => {
 
   return config
 })
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 && localStorage.getItem('smartHospitalToken')) {
+      localStorage.removeItem('smartHospitalToken')
+      localStorage.removeItem('smartHospitalUser')
+      window.dispatchEvent(new CustomEvent('smart-hospital:unauthorized'))
+    }
+    return Promise.reject(error)
+  },
+)

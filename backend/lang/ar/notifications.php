@@ -6,4 +6,6 @@ return [
     'profile_change_rejected' => ['title' => 'تم رفض التعديل', 'message' => 'تم رفض طلبك. السبب: :reason'],
     'appointment_created' => ['title' => 'موعد جديد', 'message' => 'تم تسجيل موعد في :date ضمن :department.'],
     'appointment_updated' => ['title' => 'تم تحديث الموعد', 'message' => 'أصبح موعد :date الآن :status.'],
+    'laboratory_order_created' => ['title' => 'طلب مختبر جديد', 'message' => 'طلب الدكتور :doctor فحص «:exam».'],
+    'imaging_order_created' => ['title' => 'طلب تصوير جديد', 'message' => 'طلب الدكتور :doctor فحص «:exam».'],
 ];

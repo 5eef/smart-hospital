@@ -53,11 +53,12 @@ class AuthController extends Controller
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'role' => ['sometimes', Rule::in(['admin', 'doctor', 'patient'])],
         ]);
 
         $user = User::with(['role', 'doctor', 'patient'])->where('email', $credentials['email'])->first();
 
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
+        if (! $user || ! Hash::check($credentials['password'], $user->password) || (($credentials['role'] ?? null) && $user->role?->name !== $credentials['role'])) {
             throw ValidationException::withMessages([
                 'email' => [__('api.invalid_credentials')],
             ]);

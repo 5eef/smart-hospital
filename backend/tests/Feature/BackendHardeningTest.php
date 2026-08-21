@@ -88,9 +88,16 @@ class BackendHardeningTest extends TestCase
         $token = $this->postJson('/api/auth/login', [
             'email' => $user->email,
             'password' => 'password123',
+            'role' => 'patient',
         ])->assertOk()
             ->assertJsonPath('user.id', $user->id)
             ->json('token');
+
+        $this->postJson('/api/auth/login', [
+            'email' => $user->email,
+            'password' => 'password123',
+            'role' => 'doctor',
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
 
         $this->withToken($token)->getJson('/api/auth/me')
             ->assertOk()
@@ -132,6 +139,20 @@ class BackendHardeningTest extends TestCase
         $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard')->assertOk();
         $this->actingAs($doctor->user, 'sanctum')->getJson('/api/doctor/dashboard')->assertOk();
         $this->actingAs($patient->user, 'sanctum')->getJson('/api/patient/dashboard')->assertOk();
+    }
+
+    public function test_admin_statistics_period_is_validated_and_returned_from_real_data(): void
+    {
+        $admin = $this->createUser('admin', 'statistics-admin@example.test');
+
+        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard?months=3')
+            ->assertOk()
+            ->assertJsonCount(3, 'activity')
+            ->assertJsonStructure(['period_appointments', 'appointment_statuses', 'appointments_by_department']);
+
+        $this->actingAs($admin, 'sanctum')->getJson('/api/admin/dashboard?months=5')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('months');
     }
 
     public function test_admin_department_crud_has_validation_search_pagination_and_permissions(): void
@@ -331,11 +352,77 @@ class BackendHardeningTest extends TestCase
             ->assertJsonPath('patient_id', $patient->id);
         $this->assertDatabaseHas('notifications', ['user_id' => $patient->user_id, 'type' => 'appointment_updated']);
 
+        $this->actingAs($patient->user, 'sanctum')->deleteJson("/api/appointments/{$appointmentId}")
+            ->assertForbidden();
+        $this->actingAs($doctor->user, 'sanctum')->deleteJson("/api/appointments/{$appointmentId}")
+            ->assertForbidden();
+
         $this->actingAs($patient->user, 'sanctum')->putJson("/api/appointments/{$appointmentId}", [
             'status' => 'completed',
         ])->assertForbidden();
         $this->actingAs($other->user, 'sanctum')->getJson("/api/appointments/{$appointmentId}")
             ->assertNotFound();
+    }
+
+    public function test_clinical_orders_are_persistent_and_scoped_to_the_doctor_and_patient(): void
+    {
+        [$department, $doctor] = $this->createDoctor();
+        [, $otherDoctor] = $this->createDoctor();
+        $patient = $this->createPatient('clinical-order-patient@example.test');
+        $otherPatient = $this->createPatient('clinical-order-other@example.test');
+        $admin = $this->createUser('admin', 'clinical-order-admin@example.test');
+        Appointment::create([
+            'patient_id' => $patient->id,
+            'doctor_id' => $doctor->id,
+            'department_id' => $department->id,
+            'scheduled_at' => now()->addDay(),
+            'status' => 'confirmed',
+        ]);
+
+        $this->actingAs($doctor->user, 'sanctum')->postJson('/api/clinical-orders', [
+            'patient_id' => $otherPatient->id,
+            'type' => 'laboratory',
+            'exam_name' => 'NFS',
+            'priority' => 'routine',
+        ])->assertForbidden();
+
+        $orderId = $this->actingAs($doctor->user, 'sanctum')->postJson('/api/clinical-orders', [
+            'patient_id' => $patient->id,
+            'type' => 'imaging',
+            'exam_name' => 'Radiographie thoracique',
+            'priority' => 'urgent',
+            'instructions' => 'Face et profil.',
+        ])->assertCreated()
+            ->assertJsonPath('doctor_id', $doctor->id)
+            ->assertJsonPath('patient_id', $patient->id)
+            ->assertJsonPath('status', 'requested')
+            ->json('id');
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $patient->user_id,
+            'type' => 'imaging_order_created',
+        ]);
+        $this->actingAs($patient->user, 'sanctum')->getJson('/api/clinical-orders')
+            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $orderId);
+        $this->actingAs($otherPatient->user, 'sanctum')->getJson('/api/clinical-orders')
+            ->assertOk()->assertJsonPath('total', 0);
+        $this->actingAs($admin, 'sanctum')->getJson('/api/clinical-orders')->assertForbidden();
+        $this->actingAs($patient->user, 'sanctum')->postJson('/api/clinical-orders', [])->assertForbidden();
+        $this->actingAs($otherDoctor->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
+            'status' => 'completed',
+            'result' => 'Ne doit pas passer.',
+        ])->assertNotFound();
+
+        $this->actingAs($doctor->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
+            'status' => 'completed',
+            'result' => 'Aucune anomalie détectée.',
+        ])->assertOk()
+            ->assertJsonPath('status', 'completed')
+            ->assertJsonPath('result', 'Aucune anomalie détectée.')
+            ->assertJsonPath('completed_at', fn ($value) => is_string($value));
+        $this->actingAs($patient->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
+            'status' => 'cancelled',
+        ])->assertForbidden();
     }
 
     public function test_private_broadcast_channel_only_authorizes_its_owner(): void
