@@ -1,0 +1,41 @@
+<?php
+
+return [
+    'invalid_credentials' => 'Invalid credentials.',
+    'account_disabled' => 'Account disabled.',
+    'session_closed' => 'Session closed.',
+    'forbidden_role' => 'Access denied for this role.',
+    'resource_not_found' => 'Resource not found.',
+    'access_denied' => 'Access denied.',
+    'resource_deleted' => 'Resource deleted successfully.',
+    'filter_unavailable' => 'This filter is not available for this resource.',
+    'doctor_profile_missing' => 'Doctor profile not found.',
+    'patient_profile_missing' => 'Patient profile not found.',
+    'appointment_forbidden' => 'A patient may only request or cancel an appointment.',
+    'doctor_department_mismatch' => 'The selected doctor does not belong to this specialty.',
+    'doctor_unavailable' => 'The selected doctor is not available for an appointment.',
+    'appointment_conflict' => 'This time slot is no longer available for the doctor or patient.',
+    'patient_not_assigned' => 'This patient is not assigned to your care.',
+    'prescription_forbidden' => 'Prescription not authorized for this medical record.',
+    'password_reset' => 'The doctor password has been reset.',
+    'profile' => [
+        'no_changes' => 'No valid changes were provided.',
+        'pending_exists' => 'A profile change request is already pending.',
+        'requested' => 'Your profile change request was sent to an administrator.',
+        'updated' => 'Profile updated.',
+        'approved' => 'The profile change request was approved.',
+        'rejected' => 'The profile change request was rejected.',
+        'already_reviewed' => 'This request has already been reviewed.',
+    ],
+    'notifications' => [
+        'read' => 'Notification marked as read.',
+        'read_all' => 'All notifications were marked as read.',
+    ],
+    'statuses' => [
+        'pending' => 'pending',
+        'confirmed' => 'confirmed',
+        'cancelled' => 'cancelled',
+        'completed' => 'completed',
+        'no_show' => 'no-show',
+    ],
+];

@@ -1,0 +1,6 @@
+vendor
+node_modules
+storage/logs/*.log
+bootstrap/cache/*.php
+.env
+.phpunit.result.cache

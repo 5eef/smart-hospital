@@ -1,0 +1,32 @@
+# Secrets and local configuration
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# PHP / Laravel generated files
+backend/vendor/
+backend/.phpunit.result.cache
+backend/bootstrap/cache/*.php
+!backend/bootstrap/cache/.gitignore
+backend/storage/logs/*
+!backend/storage/logs/.gitignore
+backend/storage/framework/cache/data/*
+!backend/storage/framework/cache/data/.gitignore
+backend/storage/framework/sessions/*
+!backend/storage/framework/sessions/.gitignore
+backend/storage/framework/testing/*
+!backend/storage/framework/testing/.gitignore
+backend/storage/framework/views/*
+!backend/storage/framework/views/.gitignore
+
+# JavaScript generated files
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+
+# Tooling and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

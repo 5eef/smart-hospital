@@ -1,0 +1,41 @@
+<?php
+
+return [
+    'invalid_credentials' => 'بيانات الدخول غير صحيحة.',
+    'account_disabled' => 'الحساب معطّل.',
+    'session_closed' => 'تم إنهاء الجلسة.',
+    'forbidden_role' => 'غير مسموح لهذا الدور بالوصول.',
+    'resource_not_found' => 'المورد غير موجود.',
+    'access_denied' => 'الوصول مرفوض.',
+    'resource_deleted' => 'تم حذف المورد بنجاح.',
+    'filter_unavailable' => 'هذا المرشح غير متاح لهذا المورد.',
+    'doctor_profile_missing' => 'ملف الطبيب غير موجود.',
+    'patient_profile_missing' => 'ملف المريض غير موجود.',
+    'appointment_forbidden' => 'يمكن للمريض طلب موعد أو إلغاؤه فقط.',
+    'doctor_department_mismatch' => 'الطبيب المحدد لا ينتمي إلى هذا التخصص.',
+    'doctor_unavailable' => 'الطبيب المحدد غير متاح للموعد.',
+    'appointment_conflict' => 'هذا الموعد لم يعد متاحًا للطبيب أو المريض.',
+    'patient_not_assigned' => 'هذا المريض ليس ضمن متابعتك.',
+    'prescription_forbidden' => 'الوصفة غير مصرح بها لهذا الملف الطبي.',
+    'password_reset' => 'تمت إعادة تعيين كلمة مرور الطبيب.',
+    'profile' => [
+        'no_changes' => 'لم يتم تقديم أي تعديل صالح.',
+        'pending_exists' => 'يوجد طلب تعديل قيد الانتظار بالفعل.',
+        'requested' => 'تم إرسال طلب تعديل ملفك إلى المسؤول.',
+        'updated' => 'تم تحديث الملف الشخصي.',
+        'approved' => 'تمت الموافقة على طلب التعديل.',
+        'rejected' => 'تم رفض طلب التعديل.',
+        'already_reviewed' => 'تمت معالجة هذا الطلب مسبقًا.',
+    ],
+    'notifications' => [
+        'read' => 'تم تعليم الإشعار كمقروء.',
+        'read_all' => 'تم تعليم جميع الإشعارات كمقروءة.',
+    ],
+    'statuses' => [
+        'pending' => 'قيد الانتظار',
+        'confirmed' => 'مؤكد',
+        'cancelled' => 'ملغى',
+        'completed' => 'مكتمل',
+        'no_show' => 'متغيب',
+    ],
+];

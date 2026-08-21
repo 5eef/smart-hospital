@@ -1,0 +1,41 @@
+<?php
+
+return [
+    'invalid_credentials' => 'Identifiants invalides.',
+    'account_disabled' => 'Compte désactivé.',
+    'session_closed' => 'Session fermée.',
+    'forbidden_role' => 'Accès refusé pour ce rôle.',
+    'resource_not_found' => 'Ressource introuvable.',
+    'access_denied' => 'Accès refusé.',
+    'resource_deleted' => 'Ressource supprimée avec succès.',
+    'filter_unavailable' => 'Ce filtre n’est pas disponible pour cette ressource.',
+    'doctor_profile_missing' => 'Profil médecin introuvable.',
+    'patient_profile_missing' => 'Profil patient introuvable.',
+    'appointment_forbidden' => 'Un patient peut uniquement annuler ou demander un rendez-vous.',
+    'doctor_department_mismatch' => 'Le médecin sélectionné ne fait pas partie de cette spécialité.',
+    'doctor_unavailable' => 'Le médecin sélectionné n’est pas disponible pour un rendez-vous.',
+    'appointment_conflict' => 'Ce créneau n’est plus disponible pour le médecin ou le patient.',
+    'patient_not_assigned' => 'Ce patient ne fait pas partie de votre suivi.',
+    'prescription_forbidden' => 'Prescription non autorisée pour ce dossier.',
+    'password_reset' => 'Le mot de passe du médecin a été réinitialisé.',
+    'profile' => [
+        'no_changes' => 'Aucune modification valide n’a été fournie.',
+        'pending_exists' => 'Une demande de modification est déjà en attente.',
+        'requested' => 'Votre demande de modification a été transmise à un administrateur.',
+        'updated' => 'Profil mis à jour.',
+        'approved' => 'La demande de modification a été approuvée.',
+        'rejected' => 'La demande de modification a été rejetée.',
+        'already_reviewed' => 'Cette demande a déjà été traitée.',
+    ],
+    'notifications' => [
+        'read' => 'Notification marquée comme lue.',
+        'read_all' => 'Toutes les notifications ont été marquées comme lues.',
+    ],
+    'statuses' => [
+        'pending' => 'en attente',
+        'confirmed' => 'confirmé',
+        'cancelled' => 'annulé',
+        'completed' => 'terminé',
+        'no_show' => 'absent',
+    ],
+];
