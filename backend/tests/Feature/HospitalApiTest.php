@@ -93,6 +93,7 @@ class HospitalApiTest extends TestCase
             'password' => 'password123',
             'role_id' => $role->id,
             'is_active' => true,
+            'email_verified_at' => now(),
         ]);
     }
 }

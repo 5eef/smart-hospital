@@ -3,30 +3,18 @@ import { authService } from '../services/authService'
 import { AuthContext } from './auth-context'
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    const storedUser = localStorage.getItem('smartHospitalUser')
-    return storedUser ? JSON.parse(storedUser) : null
-  })
-  const [isLoading, setIsLoading] = useState(Boolean(localStorage.getItem('smartHospitalToken')))
+  const [user, setUser] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const token = localStorage.getItem('smartHospitalToken')
-
-    if (!token) {
-      return
-    }
-
     let isMounted = true
     authService
       .me()
       .then(({ user: freshUser }) => {
         if (!isMounted) return
         setUser(freshUser)
-        localStorage.setItem('smartHospitalUser', JSON.stringify(freshUser))
       })
       .catch(() => {
-        localStorage.removeItem('smartHospitalToken')
-        localStorage.removeItem('smartHospitalUser')
         if (isMounted) setUser(null)
       })
       .finally(() => {
@@ -51,8 +39,6 @@ export function AuthProvider({ children }) {
     setIsLoading(true)
     try {
       const data = await authService.login(credentials)
-      localStorage.setItem('smartHospitalToken', data.token)
-      localStorage.setItem('smartHospitalUser', JSON.stringify(data.user))
       setUser(data.user)
       return data.user
     } finally {
@@ -64,8 +50,6 @@ export function AuthProvider({ children }) {
     setIsLoading(true)
     try {
       const data = await authService.register(payload)
-      localStorage.setItem('smartHospitalToken', data.token)
-      localStorage.setItem('smartHospitalUser', JSON.stringify(data.user))
       setUser(data.user)
       return data.user
     } finally {
@@ -76,7 +60,6 @@ export function AuthProvider({ children }) {
   const updateProfile = useCallback(async (payload) => {
     const data = await authService.updateProfile(payload)
     if (data.user) {
-      localStorage.setItem('smartHospitalUser', JSON.stringify(data.user))
       setUser(data.user)
     }
     return data
@@ -86,8 +69,6 @@ export function AuthProvider({ children }) {
     try {
       await authService.logout()
     } finally {
-      localStorage.removeItem('smartHospitalToken')
-      localStorage.removeItem('smartHospitalUser')
       setUser(null)
     }
   }, [])

@@ -4,11 +4,10 @@ namespace App\Events;
 
 use App\Models\Notification;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class UserNotificationCreated implements ShouldBroadcastNow
+class UserNotificationCreated
 {
     use Dispatchable, SerializesModels;
 

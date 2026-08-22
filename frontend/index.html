@@ -7,13 +7,7 @@
     <meta name="theme-color" content="#1459d9" />
     <meta name="description" content="SmartHôpital — portail hospitalier sécurisé pour patients, médecins et administration." />
     <title>SmartHôpital</title>
-    <script>
-      try {
-        const savedTheme = localStorage.getItem('smartHospitalTheme')
-        const dark = savedTheme ? savedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
-        document.documentElement.classList.toggle('dark', dark)
-      } catch {}
-    </script>
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

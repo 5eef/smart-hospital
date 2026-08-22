@@ -11,6 +11,7 @@ use App\Models\Patient;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
@@ -21,13 +22,24 @@ class BackendHardeningTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_health_is_public_and_api_root_not_found_is_expected(): void
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->withoutMiddleware(ValidateCsrfToken::class);
+        $this->withHeader('Origin', 'http://localhost:5173');
+    }
+
+    public function test_health_readiness_and_api_root_are_public_and_minimal(): void
     {
         $this->getJson('/api/health')
             ->assertOk()
             ->assertJsonPath('status', 'ok');
 
-        $this->getJson('/api')->assertNotFound();
+        $this->getJson('/api')->assertOk()->assertExactJson([
+            'service' => 'SmartHôpital API',
+            'status' => 'ok',
+        ]);
+        $this->getJson('/api/ready')->assertOk()->assertJsonPath('status', 'ready');
     }
 
     public function test_cors_allows_configured_frontend_and_rejects_unknown_origin(): void
@@ -56,42 +68,43 @@ class BackendHardeningTest extends TestCase
         $this->postJson('/api/auth/register', [
             'name' => 'Forbidden Admin',
             'email' => 'forbidden-admin@example.test',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'password1234',
+            'password_confirmation' => 'password1234',
             'role' => 'admin',
         ])->assertUnprocessable()->assertJsonValidationErrors('role');
 
         $response = $this->postJson('/api/auth/register', [
             'name' => 'New Patient',
             'email' => 'new-patient@example.test',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'password1234',
+            'password_confirmation' => 'password1234',
             'phone' => '+212600000000',
             'locale' => 'en',
         ])->assertCreated()
             ->assertJsonPath('user.role', 'patient')
             ->assertJsonPath('user.locale', 'en')
             ->assertJsonMissingPath('user.password')
-            ->assertJsonStructure(['token']);
+            ->assertJsonMissingPath('token')
+            ->assertJsonPath('email_verification_required', true);
 
         $user = User::where('email', 'new-patient@example.test')->firstOrFail();
-        $this->assertTrue(Hash::check('password123', $user->password));
+        $this->assertTrue(Hash::check('password1234', $user->password));
         $this->assertNotNull($user->patient);
-        $this->assertNotEmpty($response->json('token'));
+        $this->assertNull($response->json('token'));
     }
 
-    public function test_login_me_and_logout_revoke_the_current_token(): void
+    public function test_login_me_and_logout_use_the_spa_session_without_exposing_a_token(): void
     {
         $user = $this->createUser('patient', 'login@example.test');
         Patient::create(['user_id' => $user->id]);
 
-        $token = $this->postJson('/api/auth/login', [
+        $this->postJson('/api/auth/login', [
             'email' => $user->email,
             'password' => 'password123',
             'role' => 'patient',
         ])->assertOk()
             ->assertJsonPath('user.id', $user->id)
-            ->json('token');
+            ->assertJsonMissingPath('token');
 
         $this->postJson('/api/auth/login', [
             'email' => $user->email,
@@ -99,15 +112,15 @@ class BackendHardeningTest extends TestCase
             'role' => 'doctor',
         ])->assertUnprocessable()->assertJsonValidationErrors('email');
 
-        $this->withToken($token)->getJson('/api/auth/me')
+        $this->getJson('/api/auth/me')
             ->assertOk()
             ->assertJsonPath('user.email', $user->email);
 
-        $this->withToken($token)->postJson('/api/auth/logout')
+        $this->postJson('/api/auth/logout')
             ->assertOk();
 
         $this->app['auth']->forgetGuards();
-        $this->withToken($token)->getJson('/api/auth/me')->assertUnauthorized();
+        $this->getJson('/api/auth/me')->assertUnauthorized();
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
@@ -185,7 +198,7 @@ class BackendHardeningTest extends TestCase
 
         $this->actingAs($admin, 'sanctum')->deleteJson("/api/departments/{$departmentId}")
             ->assertOk();
-        $this->assertDatabaseMissing('departments', ['id' => $departmentId]);
+        $this->assertDatabaseHas('departments', ['id' => $departmentId, 'is_active' => false]);
     }
 
     public function test_patient_profile_changes_are_pending_until_admin_approval(): void
@@ -241,7 +254,7 @@ class BackendHardeningTest extends TestCase
         $patient = $this->createPatient('reject-patient@example.test');
         $originalName = $patient->user->name;
 
-        $changeId = $this->actingAs($patient->user, 'sanctum')->putJson('/api/auth/profile', [
+        $changeId = $this->actingAs($patient->user, 'sanctum')->postJson('/api/profile/change-requests', [
             'name' => 'Nom refusé',
         ])->assertStatus(202)->json('change_request.id');
 
@@ -414,6 +427,10 @@ class BackendHardeningTest extends TestCase
         ])->assertNotFound();
 
         $this->actingAs($doctor->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
+            'status' => 'in_progress',
+        ])->assertOk()->assertJsonPath('status', 'in_progress');
+
+        $this->actingAs($doctor->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
             'status' => 'completed',
             'result' => 'Aucune anomalie détectée.',
         ])->assertOk()
@@ -515,6 +532,7 @@ class BackendHardeningTest extends TestCase
             'role_id' => Role::where('name', $roleName)->value('id'),
             'locale' => 'fr',
             'is_active' => $active,
+            'email_verified_at' => now(),
         ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\ClinicalOrder;
 use App\Services\NotificationService;
+use App\Services\AuditService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,7 +14,10 @@ use Illuminate\Validation\Rule;
 
 class ClinicalOrderController extends Controller
 {
-    public function __construct(private readonly NotificationService $notifications) {}
+    public function __construct(
+        private readonly NotificationService $notifications,
+        private readonly AuditService $audit,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -57,7 +61,10 @@ class ClinicalOrderController extends Controller
         ]);
 
         abort_unless(
-            Appointment::where('doctor_id', $doctor->id)->where('patient_id', $validated['patient_id'])->exists(),
+            Appointment::where('doctor_id', $doctor->id)
+                ->where('patient_id', $validated['patient_id'])
+                ->whereIn('status', ['confirmed', 'completed'])
+                ->exists(),
             403,
             __('api.patient_not_assigned')
         );
@@ -74,6 +81,7 @@ class ClinicalOrderController extends Controller
             $order->type.'_order_created',
             ['exam' => $order->exam_name, 'doctor' => $order->doctor->user->name]
         );
+        $this->audit->record($request, 'clinical_order.created', $order, array_keys($validated));
 
         return response()->json($order, 201);
     }
@@ -90,6 +98,22 @@ class ClinicalOrderController extends Controller
             'result' => ['nullable', 'string', 'max:10000', 'required_if:status,completed'],
         ]);
 
+        $nextStatus = $validated['status'] ?? $order->status;
+        $allowedTransitions = [
+            'requested' => ['in_progress', 'cancelled'],
+            'in_progress' => ['completed', 'cancelled'],
+            'completed' => [],
+            'cancelled' => [],
+        ];
+
+        if ($nextStatus !== $order->status) {
+            abort_unless(in_array($nextStatus, $allowedTransitions[$order->status] ?? [], true), 422, 'Transition de statut invalide.');
+        }
+
+        if (in_array($order->status, ['completed', 'cancelled'], true) && array_diff(array_keys($validated), ['status']) !== []) {
+            abort(409, 'Un ordre clinique finalisé ne peut plus être modifié.');
+        }
+
         if (($validated['status'] ?? null) === 'completed') {
             $validated['completed_at'] = now();
         } elseif (array_key_exists('status', $validated)) {
@@ -97,6 +121,7 @@ class ClinicalOrderController extends Controller
         }
 
         $order->update($validated);
+        $this->audit->record($request, 'clinical_order.updated', $order, array_keys($validated));
 
         return response()->json($order->fresh(['patient.user', 'doctor.user']));
     }

@@ -16,6 +16,7 @@ final class UserPresenter
             'phone' => $user->phone,
             'locale' => $user->locale,
             'is_active' => $user->is_active,
+            'email_verified' => $user->hasVerifiedEmail(),
             'doctor_id' => $user->doctor?->id,
             'patient_id' => $user->patient?->id,
         ];

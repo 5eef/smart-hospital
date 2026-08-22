@@ -4,6 +4,7 @@ x-backend-environment: &backend-environment
   APP_KEY: ${APP_KEY:?APP_KEY is required}
   APP_DEBUG: "false"
   APP_URL: ${APP_URL:?APP_URL is required}
+  FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
   APP_LOCALE: fr
   APP_FALLBACK_LOCALE: fr
   LOG_CHANNEL: stderr
@@ -20,19 +21,19 @@ x-backend-environment: &backend-environment
   SESSION_SAME_SITE: lax
   CACHE_STORE: database
   QUEUE_CONNECTION: database
-  BROADCAST_CONNECTION: reverb
+  BROADCAST_CONNECTION: log
   SANCTUM_EXPIRATION: 480
   SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:?SANCTUM_STATEFUL_DOMAINS is required}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS is required}
-  REVERB_APP_ID: ${REVERB_APP_ID:?REVERB_APP_ID is required}
-  REVERB_APP_KEY: ${REVERB_APP_KEY:?REVERB_APP_KEY is required}
-  REVERB_APP_SECRET: ${REVERB_APP_SECRET:?REVERB_APP_SECRET is required}
-  REVERB_HOST: ${REVERB_HOST:?REVERB_HOST is required}
-  REVERB_PORT: ${REVERB_PORT:-443}
-  REVERB_SCHEME: ${REVERB_SCHEME:-https}
-  REVERB_SERVER_HOST: 0.0.0.0
-  REVERB_SERVER_PORT: 8080
-  REVERB_ALLOWED_ORIGINS: ${REVERB_ALLOWED_ORIGINS:?REVERB_ALLOWED_ORIGINS is required}
+  CORS_SUPPORTS_CREDENTIALS: "true"
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:?TRUSTED_PROXIES is required}
+  MAIL_MAILER: ${MAIL_MAILER:-smtp}
+  MAIL_HOST: ${MAIL_HOST:?MAIL_HOST is required}
+  MAIL_PORT: ${MAIL_PORT:-587}
+  MAIL_USERNAME: ${MAIL_USERNAME:?MAIL_USERNAME is required}
+  MAIL_PASSWORD: ${MAIL_PASSWORD:?MAIL_PASSWORD is required}
+  MAIL_ENCRYPTION: ${MAIL_ENCRYPTION:-tls}
+  MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:?MAIL_FROM_ADDRESS is required}
 
 x-backend-service: &backend-service
   image: smart-hospital-backend-production
@@ -66,9 +67,9 @@ services:
     <<: *backend-service
     command: ["sh", "-c", "php artisan optimize && apache2-foreground"]
     ports:
-      - "${BACKEND_PORT:-8001}:80"
+      - "127.0.0.1:${BACKEND_PORT:-8001}:80"
     healthcheck:
-      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1/api/health') === false ? 1 : 0);"]
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1/api/ready"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -79,13 +80,6 @@ services:
     user: www-data
     command: ["php", "artisan", "queue:work", "--sleep=3", "--tries=3", "--timeout=90", "--max-time=3600"]
     stop_grace_period: 2m
-
-  reverb:
-    <<: *backend-service
-    user: www-data
-    command: ["php", "artisan", "reverb:start", "--host=0.0.0.0", "--port=8080"]
-    ports:
-      - "${REVERB_PUBLIC_PORT:-8081}:8080"
 
   frontend:
     image: smart-hospital-frontend-production
@@ -99,7 +93,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${FRONTEND_PORT:-8080}:80"
+      - "127.0.0.1:${FRONTEND_PORT:-8080}:80"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 15s

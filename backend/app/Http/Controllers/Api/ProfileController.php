@@ -7,6 +7,7 @@ use App\Models\ProfileChangeRequest;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\NotificationService;
+use App\Services\AuditService;
 use App\Support\UserPresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +38,7 @@ class ProfileController extends Controller
         );
     }
 
-    public function requestChange(Request $request, NotificationService $notifications): JsonResponse
+    public function requestChange(Request $request, NotificationService $notifications, AuditService $audit): JsonResponse
     {
         $user = $request->user()->load(['role', 'doctor', 'patient']);
         $rules = [
@@ -58,6 +59,7 @@ class ProfileController extends Controller
 
         if ($user->role?->name === 'admin') {
             $user->update($changes);
+            $audit->record($request, 'profile.updated', $user, array_keys($changes));
 
             return response()->json([
                 'message' => __('api.profile.updated'),
@@ -85,6 +87,7 @@ class ProfileController extends Controller
         Role::where('name', 'admin')->first()?->users()->where('is_active', true)->each(
             fn ($admin) => $notifications->send($admin, 'profile_change_requested', ['user' => $user->name])
         );
+        $audit->record($request, 'profile.change_requested', $changeRequest, array_keys($changes));
 
         return response()->json([
             'message' => __('api.profile.requested'),

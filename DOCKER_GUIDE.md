@@ -1,61 +1,39 @@
-# Smart Hospital - Docker
+# Smart Hospital — guide Docker
 
-## Lancer le projet
-
-```powershell
-cd "C:\Users\seef7\OneDrive\Desktop\site_medical\smart-hospital"
-docker compose up --build
-```
-
-Le site sera disponible ici :
-
-- Frontend React : http://localhost:5173
-- Backend Laravel API : http://localhost:8001/api
-- MySQL : localhost:3309
-
-## Comptes de test
-
-```text
-admin@smarthospital.test / password
-doctor@smarthospital.test / password
-patient@smarthospital.test / password
-```
-
-## Commandes utiles
+## Développement local
 
 ```powershell
+docker compose build
+docker compose up -d
 docker compose ps
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose exec backend php artisan migrate:fresh --seed
-docker compose down
-docker compose down -v
 ```
 
-`docker compose down -v` supprime aussi la base MySQL Docker.
+Services locaux : frontend `http://localhost:5173`, API `http://localhost:8001/api` et MySQL `127.0.0.1:3309`. Ces ports sont liés à l’interface loopback uniquement.
 
-## Tester manuellement
+Le backend applique les migrations additives et initialise les rôles. Les données de démonstration ne sont autorisées qu’en environnement `local` ou `testing`; leurs mots de passe sont aléatoires. Utilisez le workflow « mot de passe oublié » et consultez `storage/logs/laravel.log` quand `MAIL_MAILER=log`.
 
-1. Ouvrir `http://localhost:5173` et vérifier la page d'accueil.
-2. Se connecter avec l'un des comptes de test ci-dessus.
-3. Vérifier le dashboard correspondant au rôle.
-4. Dans l'espace admin, tester la création, modification, recherche et suppression d'un patient.
-5. Tester les mêmes opérations pour un médecin et une spécialité.
-6. Créer un rendez-vous, modifier son statut, puis vérifier le contrôle de conflit de créneau.
-7. Ouvrir les espaces médecin et patient et vérifier leurs données filtrées.
-8. Ouvrir les outils développeur du navigateur et vérifier l'absence d'erreur dans Console et Network.
-
-## Publier sur GitHub
-
-Depuis la racine du projet :
+Commandes sûres :
 
 ```powershell
-git init
-git add .
-git commit -m "Initial Smart Hospital application"
-git branch -M main
-git remote add origin https://github.com/<utilisateur>/<depot>.git
-git push -u origin main
+docker compose exec backend php artisan migrate:status
+docker compose exec backend php artisan test
+docker compose exec frontend npm run lint
+docker compose exec frontend npm test
+docker compose exec frontend npm run build
+docker compose logs -f backend
+docker compose down
 ```
 
-Remplace `<utilisateur>/<depot>` par l'URL de ton dépôt GitHub. Ne publie jamais les fichiers `.env`, les mots de passe ou des tokens.
+`docker compose down` conserve le volume MySQL. Ne supprimez jamais les volumes ni la base sans sauvegarde et autorisation explicites.
+
+## Production
+
+Copiez `.env.production.example` vers un fichier non versionné, remplacez chaque valeur `replace-*` et définissez les domaines réels, le proxy de confiance et le SMTP. Validez ensuite :
+
+```powershell
+docker compose --env-file .env.production -f docker-compose.production.yml config
+docker compose --env-file .env.production -f docker-compose.production.yml build
+docker compose --env-file .env.production -f docker-compose.production.yml up -d
+```
+
+MySQL n’est pas publié. Le backend et le frontend sont liés à `127.0.0.1` pour être servis par un reverse proxy TLS. Reverb est désactivé tant qu’aucun client Echo n’est intégré.

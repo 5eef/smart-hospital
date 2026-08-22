@@ -11,18 +11,23 @@ use App\Models\Patient;
 use App\Models\Prescription;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\AuditService;
 use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class ResourceController extends Controller
 {
-    public function __construct(private readonly NotificationService $notifications) {}
+    public function __construct(
+        private readonly NotificationService $notifications,
+        private readonly AuditService $audit,
+    ) {}
 
     public function index(Request $request, string $model): JsonResponse
     {
@@ -65,11 +70,19 @@ class ResourceController extends Controller
         $validated = validator($payload, $this->rules($model))->validate();
 
         if ($model === 'doctors') {
-            return response()->json($this->storeDoctor($validated)->load(['user', 'department']), 201);
+            $doctor = $this->storeDoctor($validated)->load(['user', 'department']);
+            Password::sendResetLink(['email' => $doctor->user->email]);
+            $this->audit->record($request, 'doctor.created', $doctor, array_keys($validated));
+
+            return response()->json($doctor, 201);
         }
 
         if ($model === 'patients') {
-            return response()->json($this->storePatient($validated)->load(['user']), 201);
+            $patient = $this->storePatient($validated)->load(['user']);
+            Password::sendResetLink(['email' => $patient->user->email]);
+            $this->audit->record($request, 'patient.created', $patient, array_keys($validated));
+
+            return response()->json($patient, 201);
         }
 
         $this->assertPayloadAccess($request, $model, $validated);
@@ -77,6 +90,7 @@ class ResourceController extends Controller
         $class = $this->resolveModel($model);
         $record = $model === 'appointments'
             ? DB::transaction(function () use ($validated) {
+                $this->lockAppointmentParticipants($validated);
                 $this->assertAppointmentIntegrity($validated);
 
                 return Appointment::create($validated);
@@ -87,6 +101,7 @@ class ResourceController extends Controller
         if ($model === 'appointments') {
             $this->notifications->appointmentCreated($record, $request->user());
         }
+        $this->audit->record($request, $model.'.created', $record, array_keys($validated));
 
         return response()->json($record, 201);
     }
@@ -107,12 +122,14 @@ class ResourceController extends Controller
 
         if ($model === 'doctors') {
             $this->updateDoctor($record, $validated);
+            $this->audit->record($request, 'doctor.updated', $record, array_keys($validated));
 
             return response()->json($record->fresh(['user', 'department']));
         }
 
         if ($model === 'patients') {
             $this->updatePatient($record, $validated);
+            $this->audit->record($request, 'patient.updated', $record, array_keys($validated));
 
             return response()->json($record->fresh(['user']));
         }
@@ -125,7 +142,10 @@ class ResourceController extends Controller
         if ($model === 'appointments') {
             DB::transaction(function () use ($record, $validated) {
                 $next = array_merge($record->only(['patient_id', 'doctor_id', 'department_id', 'scheduled_at', 'status', 'reason', 'notes']), $validated);
-                $this->assertAppointmentIntegrity($next, $record->id);
+                if ($this->appointmentNeedsAvailabilityCheck($validated)) {
+                    $this->lockAppointmentParticipants($next);
+                    $this->assertAppointmentIntegrity($next, $record->id);
+                }
                 $record->update($validated);
             });
         } else {
@@ -136,6 +156,7 @@ class ResourceController extends Controller
         if ($notifyAppointment) {
             $this->notifications->appointmentUpdated($record, $request->user());
         }
+        $this->audit->record($request, $model.'.updated', $record, array_keys($validated));
 
         return response()->json($record);
     }
@@ -145,26 +166,31 @@ class ResourceController extends Controller
         abort_unless($request->user()->role?->name === 'admin', 403, __('api.access_denied'));
         $record = $this->baseQuery($request, $model)->findOrFail($id);
         DB::transaction(function () use ($record, $model) {
-            if (in_array($model, ['doctors', 'patients'], true)) {
-                $record->user?->delete();
-
-                return;
+            if ($model === 'doctors') {
+                $record->user?->update(['is_active' => false]);
+                $record->update(['status' => 'inactive']);
+            } elseif ($model === 'patients') {
+                $record->user?->update(['is_active' => false]);
+            } elseif ($model === 'appointments') {
+                $record->update(['status' => 'cancelled']);
+            } elseif (in_array($model, ['medical-records', 'prescriptions'], true)) {
+                $record->update(['archived_at' => now()]);
+            } elseif ($model === 'departments') {
+                $record->update(['is_active' => false]);
             }
-
-            $record->delete();
         });
 
-        return response()->json(['message' => __('api.resource_deleted')]);
+        $this->audit->record($request, $model.'.archived', $record);
+
+        return response()->json(['message' => __('api.resource_deleted'), 'archived' => true]);
     }
 
     public function resetDoctorPassword(Request $request, Doctor $doctor): JsonResponse
     {
         abort_unless($request->user()->role?->name === 'admin', 403, __('api.access_denied'));
 
-        $doctor->user->update([
-            'password' => Hash::make('password'),
-            'is_active' => true,
-        ]);
+        Password::sendResetLink(['email' => $doctor->user->email]);
+        $this->audit->record($request, 'doctor.password_reset_requested', $doctor);
 
         return response()->json(['message' => __('api.password_reset')]);
     }
@@ -172,7 +198,7 @@ class ResourceController extends Controller
     private function baseQuery(Request $request, string $model): Builder
     {
         $class = $this->resolveModel($model);
-        $query = $class::query()->with($this->relations($model));
+        $query = $class::query();
         $role = $request->user()->role?->name;
 
         if ($role === 'doctor') {
@@ -197,6 +223,12 @@ class ResourceController extends Controller
                 'doctors', 'departments' => null,
                 default => abort(403, __('api.access_denied')),
             };
+        }
+
+        $query->with($this->relations($model, $request));
+
+        if (in_array($model, ['medical-records', 'prescriptions'], true)) {
+            $query->whereNull('archived_at');
         }
 
         return $query;
@@ -240,14 +272,24 @@ class ResourceController extends Controller
         return $resolved;
     }
 
-    private function relations(string $model): array
+    private function relations(string $model, ?Request $request = null): array
     {
+        $doctorId = $request?->user()?->role?->name === 'doctor' ? $request->user()->doctor?->id : null;
+        $userColumns = 'id,name,email,phone,locale,is_active,email_verified_at';
+
         return match ($model) {
-            'doctors' => ['user', 'department'],
-            'patients' => ['user', 'medicalRecords.prescriptions', 'appointments.doctor.user', 'appointments.department'],
-            'appointments' => ['patient.user', 'doctor.user', 'department'],
-            'medical-records' => ['patient.user', 'doctor.user', 'prescriptions'],
-            'prescriptions' => ['patient.user', 'doctor.user', 'medicalRecord'],
+            'doctors' => ["user:$userColumns", 'department'],
+            'patients' => [
+                "user:$userColumns",
+                'medicalRecords' => fn ($query) => $query->when($doctorId, fn ($q) => $q->where('doctor_id', $doctorId))->whereNull('archived_at'),
+                'medicalRecords.prescriptions' => fn ($query) => $query->when($doctorId, fn ($q) => $q->where('doctor_id', $doctorId))->whereNull('archived_at'),
+                'appointments' => fn ($query) => $query->when($doctorId, fn ($q) => $q->where('doctor_id', $doctorId)),
+                "appointments.doctor.user:$userColumns",
+                'appointments.department',
+            ],
+            'appointments' => ["patient.user:$userColumns", "doctor.user:$userColumns", 'department'],
+            'medical-records' => ["patient.user:$userColumns", "doctor.user:$userColumns", 'prescriptions' => fn ($q) => $q->whereNull('archived_at')],
+            'prescriptions' => ["patient.user:$userColumns", "doctor.user:$userColumns", 'medicalRecord'],
             default => [],
         };
     }
@@ -321,8 +363,9 @@ class ResourceController extends Controller
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'role_id' => $role->id,
-                'password' => Hash::make('password'),
+                'password' => Str::random(64),
                 'is_active' => $validated['is_active'] ?? true,
+                'email_verified_at' => now(),
             ]);
 
             return Doctor::create([
@@ -358,7 +401,8 @@ class ResourceController extends Controller
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'role_id' => $role->id,
-                'password' => Hash::make('password'),
+                'password' => Str::random(64),
+                'email_verified_at' => now(),
             ]);
 
             return Patient::create([
@@ -388,16 +432,18 @@ class ResourceController extends Controller
             if ($role === 'patient') {
                 if ($request->isMethod('put')) {
                     $payload = collect($payload)->only(['status'])->all();
+                } else {
+                    $payload['patient_id'] = $request->user()->patient->id;
+                    $payload['status'] = $payload['status'] ?? 'pending';
                 }
-                $payload['patient_id'] = $request->user()->patient->id;
-                $payload['status'] = $payload['status'] ?? 'pending';
             }
 
             if ($role === 'doctor') {
                 if ($request->isMethod('put')) {
                     $payload = collect($payload)->only(['status', 'notes'])->all();
+                } else {
+                    $payload['doctor_id'] = $request->user()->doctor->id;
                 }
-                $payload['doctor_id'] = $request->user()->doctor->id;
             }
         }
 
@@ -440,8 +486,10 @@ class ResourceController extends Controller
     private function assertAppointmentIntegrity(array $payload, ?int $exceptId = null): void
     {
         $doctor = Doctor::findOrFail($payload['doctor_id']);
+        $department = Department::findOrFail($payload['department_id']);
         abort_unless((int) $doctor->department_id === (int) $payload['department_id'], 422, __('api.doctor_department_mismatch'));
         abort_unless($doctor->status === 'active', 422, __('api.doctor_unavailable'));
+        abort_unless($department->is_active, 422, __('api.doctor_unavailable'));
 
         $conflicts = Appointment::query()
             ->where('scheduled_at', $payload['scheduled_at'])
@@ -460,10 +508,23 @@ class ResourceController extends Controller
     private function assertDoctorCanAccessPatient(int $doctorId, int $patientId): void
     {
         abort_unless(
-            Appointment::where('doctor_id', $doctorId)->where('patient_id', $patientId)->exists(),
+            Appointment::where('doctor_id', $doctorId)->where('patient_id', $patientId)
+                ->whereIn('status', ['pending', 'confirmed', 'completed'])->exists(),
             403,
             __('api.patient_not_assigned')
         );
+    }
+
+    private function lockAppointmentParticipants(array $payload): void
+    {
+        Doctor::whereKey($payload['doctor_id'])->lockForUpdate()->firstOrFail();
+        Patient::whereKey($payload['patient_id'])->lockForUpdate()->firstOrFail();
+        Department::whereKey($payload['department_id'])->lockForUpdate()->firstOrFail();
+    }
+
+    private function appointmentNeedsAvailabilityCheck(array $validated): bool
+    {
+        return array_intersect(array_keys($validated), ['doctor_id', 'patient_id', 'department_id', 'scheduled_at']) !== [];
     }
 
     private function applySearch(Builder $query, string $model, string $search): void

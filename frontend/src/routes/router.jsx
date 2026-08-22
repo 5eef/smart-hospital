@@ -2,6 +2,10 @@ import { createBrowserRouter } from 'react-router-dom'
 import { LandingPage } from '../features/landing/LandingPage'
 import { LoginPage } from '../features/auth/LoginPage'
 import { RegisterPage } from '../features/auth/RegisterPage'
+import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage'
+import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
+import { VerifyEmailPage } from '../features/auth/VerifyEmailPage'
+import { NotFoundPage } from '../features/NotFoundPage'
 import { AdminDashboard } from '../features/admin/pages/AdminDashboard'
 import { AdminDoctorsPage } from '../features/admin/pages/AdminDoctorsPage'
 import { AdminPatientsPage } from '../features/admin/pages/AdminPatientsPage'
@@ -25,6 +29,9 @@ export const router = createBrowserRouter([
   { path: '/', element: <LandingPage /> },
   { path: '/login', element: <LoginPage /> },
   { path: '/register', element: <RegisterPage /> },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
+  { path: '/verify-email', element: <VerifyEmailPage /> },
   {
     element: <ProtectedRoute allowedRoles={['admin']} />,
     children: [
@@ -75,4 +82,5 @@ export const router = createBrowserRouter([
       },
     ],
   },
+  { path: '*', element: <NotFoundPage /> },
 ])

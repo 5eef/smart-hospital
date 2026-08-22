@@ -7,11 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Prescription extends Model
 {
-    protected $fillable = ['medical_record_id', 'doctor_id', 'patient_id', 'medication', 'dosage', 'instructions', 'issued_at'];
+    protected $fillable = ['medical_record_id', 'doctor_id', 'patient_id', 'medication', 'dosage', 'instructions', 'issued_at', 'archived_at'];
 
     protected function casts(): array
     {
-        return ['issued_at' => 'date'];
+        return ['issued_at' => 'date', 'archived_at' => 'datetime'];
     }
 
     public function medicalRecord(): BelongsTo

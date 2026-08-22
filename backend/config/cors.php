@@ -13,5 +13,5 @@ return [
     'allowed_headers' => ['*'],
     'exposed_headers' => [],
     'max_age' => 600,
-    'supports_credentials' => (bool) env('CORS_SUPPORTS_CREDENTIALS', false),
+    'supports_credentials' => (bool) env('CORS_SUPPORTS_CREDENTIALS', true),
 ];

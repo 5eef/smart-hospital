@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ProfileChangeRequest;
 use App\Services\NotificationService;
+use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +29,7 @@ class AdminProfileChangeRequestController extends Controller
         return response()->json($query->paginate($validated['per_page'] ?? 20));
     }
 
-    public function approve(Request $request, ProfileChangeRequest $profileChangeRequest, NotificationService $notifications): JsonResponse
+    public function approve(Request $request, ProfileChangeRequest $profileChangeRequest, NotificationService $notifications, AuditService $audit): JsonResponse
     {
         $reviewed = DB::transaction(function () use ($request, $profileChangeRequest) {
             $locked = ProfileChangeRequest::whereKey($profileChangeRequest->id)->lockForUpdate()->firstOrFail();
@@ -52,11 +53,12 @@ class AdminProfileChangeRequestController extends Controller
         });
 
         $notifications->send($reviewed->user, 'profile_change_approved');
+        $audit->record($request, 'profile.change_approved', $reviewed, array_keys($reviewed->requested_changes ?? []));
 
         return response()->json(['message' => __('api.profile.approved'), 'change_request' => $reviewed]);
     }
 
-    public function reject(Request $request, ProfileChangeRequest $profileChangeRequest, NotificationService $notifications): JsonResponse
+    public function reject(Request $request, ProfileChangeRequest $profileChangeRequest, NotificationService $notifications, AuditService $audit): JsonResponse
     {
         $validated = $request->validate(['rejection_reason' => ['required', 'string', 'max:1000']]);
         $reviewed = DB::transaction(function () use ($request, $profileChangeRequest, $validated) {
@@ -73,6 +75,7 @@ class AdminProfileChangeRequestController extends Controller
         });
 
         $notifications->send($reviewed->user, 'profile_change_rejected', ['reason' => $reviewed->rejection_reason]);
+        $audit->record($request, 'profile.change_rejected', $reviewed);
 
         return response()->json(['message' => __('api.profile.rejected'), 'change_request' => $reviewed]);
     }

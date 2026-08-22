@@ -12,6 +12,10 @@ export function ProtectedRoute({ allowedRoles }) {
     return <Navigate to="/login" replace />
   }
 
+  if (user.email_verified === false) {
+    return <Navigate to="/verify-email" replace />
+  }
+
   if (allowedRoles?.length && !allowedRoles.includes(user.role)) {
     return <Navigate to={`/${user.role}`} replace />
   }
