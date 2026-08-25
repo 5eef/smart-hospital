@@ -20,6 +20,7 @@ class PasswordController extends Controller
 
     public function forgot(Request $request): JsonResponse
     {
+        $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
         $validated = $request->validate(['email' => ['required', 'email']]);
         Password::sendResetLink($validated);
         $this->audit->record($request, 'password.reset_requested');
@@ -29,6 +30,8 @@ class PasswordController extends Controller
 
     public function reset(Request $request): JsonResponse
     {
+        $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
+
         $validated = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],

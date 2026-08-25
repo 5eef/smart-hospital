@@ -11,9 +11,10 @@ use App\Support\UserPresenter;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -23,6 +24,8 @@ class AuthController extends Controller
 
     public function register(Request $request): JsonResponse
     {
+        $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
@@ -49,7 +52,9 @@ class AuthController extends Controller
 
         event(new Registered($user));
         Auth::guard('web')->login($user);
-        $request->session()->regenerate();
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
         $this->audit->record($request, 'auth.register', $user, ['name', 'email']);
 
         return response()->json([
@@ -60,6 +65,8 @@ class AuthController extends Controller
 
     public function login(Request $request): JsonResponse
     {
+        $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
+
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
@@ -77,7 +84,9 @@ class AuthController extends Controller
         abort_if(! $user->is_active, 403, __('api.account_disabled'));
 
         Auth::guard('web')->login($user, false);
-        $request->session()->regenerate();
+        if ($request->hasSession()) {
+            $request->session()->regenerate();
+        }
         $this->audit->record($request, 'auth.login', $user);
 
         return response()->json([
@@ -98,8 +107,10 @@ class AuthController extends Controller
         $this->audit->record($request, 'auth.logout', $user);
         $user->tokens()->delete();
         Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        if ($request->hasSession()) {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
 
         return response()->json(['message' => __('api.session_closed')]);
     }

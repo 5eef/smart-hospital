@@ -11,6 +11,7 @@ import { StatusBadge } from '../../../components/ui/StatusBadge'
 import { useActionNotice } from '../../../hooks/useActionNotice'
 import { useResource } from '../../../hooks/useResource'
 import { resourceService } from '../../../services/resourceService'
+import { versionedUpdatePayload } from '../../../utils/apiContracts'
 import { apiError, formatDateTime, userName } from '../../../utils/formatters'
 
 const emptyForm = { patient_id: '', diagnosis: '', allergies: '', treatments: '', notes: '' }
@@ -37,8 +38,8 @@ export function DoctorConsultationsPage() {
   function selectPatient(patientId) { setForm((current) => ({ ...current, patient_id: String(patientId) })) }
   async function save(event) { event.preventDefault(); setIsSaving(true); try { await resourceService.create('medical-records', form); setForm(emptyForm); await refetch(); notify('Consultation enregistrée.') } catch (requestError) { notify(apiError(requestError, 'Impossible de créer la consultation.')) } finally { setIsSaving(false) } }
   function openOrder(type) { if (!form.patient_id) { notify('Sélectionnez un patient avant de créer une demande.'); document.querySelector('select[name="consultation-patient"]')?.focus(); return } setOrderType(type); setEditingOrder(null); setOrderForm(emptyOrderForm); setOrderOpen(true) }
-  function editOrder(order) { setOrderType(order.type); setEditingOrder(order.id); setOrderForm({ exam_name: order.exam_name, priority: order.priority, instructions: order.instructions ?? '', status: order.status, result: order.result ?? '' }); setOrderOpen(true) }
-  async function saveOrder(event) { event.preventDefault(); if (isSavingOrder) return; setIsSavingOrder(true); try { if (editingOrder) await resourceService.update('clinical-orders', editingOrder, orderForm); else await resourceService.create('clinical-orders', { patient_id: form.patient_id, type: orderType, exam_name: orderForm.exam_name, priority: orderForm.priority, instructions: orderForm.instructions }); setOrderOpen(false); setEditingOrder(null); setOrderForm(emptyOrderForm); await refetchOrders(); notify(editingOrder ? 'Demande médicale mise à jour.' : 'Demande médicale créée et patient notifié.') } catch (requestError) { notify(apiError(requestError, 'Impossible d’enregistrer la demande médicale.')) } finally { setIsSavingOrder(false) } }
+  function editOrder(order) { setOrderType(order.type); setEditingOrder(order); setOrderForm({ exam_name: order.exam_name, priority: order.priority, instructions: order.instructions ?? '', status: order.status, result: order.result ?? '' }); setOrderOpen(true) }
+  async function saveOrder(event) { event.preventDefault(); if (isSavingOrder) return; setIsSavingOrder(true); try { if (editingOrder) await resourceService.update('clinical-orders', editingOrder.id, versionedUpdatePayload(editingOrder, orderForm)); else await resourceService.create('clinical-orders', { patient_id: form.patient_id, type: orderType, exam_name: orderForm.exam_name, priority: orderForm.priority, instructions: orderForm.instructions }); setOrderOpen(false); setEditingOrder(null); setOrderForm(emptyOrderForm); await refetchOrders(); notify(editingOrder ? 'Demande médicale mise à jour.' : 'Demande médicale créée et patient notifié.') } catch (requestError) { notify(apiError(requestError, 'Impossible d’enregistrer la demande médicale.')) } finally { setIsSavingOrder(false) } }
 
   return <div className="page-stack">
     <ActionNotice message={message} onClose={clear} />

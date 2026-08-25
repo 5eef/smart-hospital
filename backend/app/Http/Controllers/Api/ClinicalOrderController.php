@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Appointment;
 use App\Models\ClinicalOrder;
-use App\Services\NotificationService;
 use App\Services\AuditService;
+use App\Services\DoctorPatientAccessPolicy;
+use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,6 +17,7 @@ class ClinicalOrderController extends Controller
     public function __construct(
         private readonly NotificationService $notifications,
         private readonly AuditService $audit,
+        private readonly DoctorPatientAccessPolicy $doctorPatientAccess,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -60,21 +61,14 @@ class ClinicalOrderController extends Controller
             'instructions' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        abort_unless(
-            Appointment::where('doctor_id', $doctor->id)
-                ->where('patient_id', $validated['patient_id'])
-                ->whereIn('status', ['confirmed', 'completed'])
-                ->exists(),
-            403,
-            __('api.patient_not_assigned')
-        );
+        $this->doctorPatientAccess->assert($doctor->id, $validated['patient_id'], 'create_clinical_order');
 
         $order = ClinicalOrder::create([
             ...$validated,
             'doctor_id' => $doctor->id,
             'status' => 'requested',
             'ordered_at' => now(),
-        ])->load(['patient.user', 'doctor.user']);
+        ])->fresh(['patient.user', 'doctor.user']);
 
         $this->notifications->send(
             $order->patient->user,
@@ -96,8 +90,12 @@ class ClinicalOrderController extends Controller
             'instructions' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'status' => ['sometimes', 'required', Rule::in(['requested', 'in_progress', 'completed', 'cancelled'])],
             'result' => ['nullable', 'string', 'max:10000', 'required_if:status,completed'],
+            'version' => ['required', 'integer', 'min:1'],
         ]);
 
+        $expectedVersion = (int) $validated['version'];
+        abort_unless($expectedVersion === (int) $order->version, 409, __('api.stale_record'));
+        unset($validated['version']);
         $nextStatus = $validated['status'] ?? $order->status;
         $allowedTransitions = [
             'requested' => ['in_progress', 'cancelled'],
@@ -107,20 +105,27 @@ class ClinicalOrderController extends Controller
         ];
 
         if ($nextStatus !== $order->status) {
-            abort_unless(in_array($nextStatus, $allowedTransitions[$order->status] ?? [], true), 422, 'Transition de statut invalide.');
+            abort_unless(in_array($nextStatus, $allowedTransitions[$order->status] ?? [], true), 422, __('api.clinical_order_transition_invalid'));
+        }
+        if ($nextStatus === $order->status && array_diff(array_keys($validated), ['status']) === []) {
+            return response()->json($order->fresh(['patient.user', 'doctor.user']));
         }
 
         if (in_array($order->status, ['completed', 'cancelled'], true) && array_diff(array_keys($validated), ['status']) !== []) {
             abort(409, 'Un ordre clinique finalisé ne peut plus être modifié.');
         }
 
-        if (($validated['status'] ?? null) === 'completed') {
+        if (($validated['status'] ?? null) === 'completed' && $order->status !== 'completed') {
             $validated['completed_at'] = now();
         } elseif (array_key_exists('status', $validated)) {
             $validated['completed_at'] = null;
         }
 
-        $order->update($validated);
+        $updated = ClinicalOrder::whereKey($order->id)->where('version', $expectedVersion)
+            ->update([...$validated, 'version' => $expectedVersion + 1]);
+        abort_unless($updated === 1, 409, __('api.stale_record'));
+        $order->refresh();
+
         $this->audit->record($request, 'clinical_order.updated', $order, array_keys($validated));
 
         return response()->json($order->fresh(['patient.user', 'doctor.user']));

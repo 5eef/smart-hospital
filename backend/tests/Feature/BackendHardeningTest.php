@@ -10,9 +10,8 @@ use App\Models\Notification;
 use App\Models\Patient;
 use App\Models\Role;
 use App\Models\User;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
-use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Lang;
@@ -428,13 +427,18 @@ class BackendHardeningTest extends TestCase
 
         $this->actingAs($doctor->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
             'status' => 'in_progress',
-        ])->assertOk()->assertJsonPath('status', 'in_progress');
+            'version' => 1,
+        ])->assertOk()
+            ->assertJsonPath('status', 'in_progress')
+            ->assertJsonPath('version', 2);
 
         $this->actingAs($doctor->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
             'status' => 'completed',
             'result' => 'Aucune anomalie détectée.',
+            'version' => 2,
         ])->assertOk()
             ->assertJsonPath('status', 'completed')
+            ->assertJsonPath('version', 3)
             ->assertJsonPath('result', 'Aucune anomalie détectée.')
             ->assertJsonPath('completed_at', fn ($value) => is_string($value));
         $this->actingAs($patient->user, 'sanctum')->putJson("/api/clinical-orders/{$orderId}", [
@@ -442,26 +446,11 @@ class BackendHardeningTest extends TestCase
         ])->assertForbidden();
     }
 
-    public function test_private_broadcast_channel_only_authorizes_its_owner(): void
+    public function test_reverb_broadcasting_surface_is_removed(): void
     {
-        config([
-            'broadcasting.default' => 'reverb',
-            'broadcasting.connections.reverb.key' => 'test-key',
-            'broadcasting.connections.reverb.secret' => 'test-secret',
-            'broadcasting.connections.reverb.app_id' => 'test-app',
-        ]);
-        Broadcast::purge();
-        Broadcast::channel('user.{userId}', fn (User $user, int $userId) => $user->id === $userId && $user->is_active);
-
-        $first = $this->createPatient('channel-one@example.test');
-        $second = $this->createPatient('channel-two@example.test');
-        $firstToken = $first->user->createToken('channel-test')->plainTextToken;
-        $secondToken = $second->user->createToken('channel-test')->plainTextToken;
-
-        $payload = ['socket_id' => '1234.5678', 'channel_name' => "private-user.{$first->user_id}"];
-        $this->withToken($firstToken)->postJson('/broadcasting/auth', $payload)->assertOk();
-        $this->app['auth']->forgetGuards();
-        $this->withToken($secondToken)->postJson('/broadcasting/auth', $payload)->assertForbidden();
+        $this->assertSame('log', config('broadcasting.default'));
+        $this->assertArrayNotHasKey('reverb', config('broadcasting.connections'));
+        $this->postJson('/broadcasting/auth')->assertNotFound();
     }
 
     public function test_accept_language_and_saved_locale_select_translated_errors(): void

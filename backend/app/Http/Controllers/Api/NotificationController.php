@@ -15,14 +15,15 @@ class NotificationController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        return response()->json(
-            $request->user()->notifications()->latest()->paginate($validated['per_page'] ?? 20)
-        );
+        $payload = $request->user()->notifications()->latest()->paginate($validated['per_page'] ?? 20)->toArray();
+        $payload['unread_count'] = $request->user()->notifications()->unread()->count();
+
+        return response()->json($payload);
     }
 
     public function unread(Request $request): JsonResponse
     {
-        return response()->json($request->user()->notifications()->unread()->latest()->get());
+        return response()->json(['unread_count' => $request->user()->notifications()->unread()->count()]);
     }
 
     public function markRead(Request $request, Notification $notification): JsonResponse

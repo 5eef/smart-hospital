@@ -3,6 +3,7 @@
 ## Développement local
 
 ```powershell
+Copy-Item backend/.env.example backend/.env
 docker compose build
 docker compose up -d
 docker compose ps
@@ -36,4 +37,4 @@ docker compose --env-file .env.production -f docker-compose.production.yml build
 docker compose --env-file .env.production -f docker-compose.production.yml up -d
 ```
 
-MySQL n’est pas publié. Le backend et le frontend sont liés à `127.0.0.1` pour être servis par un reverse proxy TLS. Reverb est désactivé tant qu’aucun client Echo n’est intégré.
+MySQL n’est pas publié. Le backend et le frontend sont liés à `127.0.0.1` pour être servis par un reverse proxy TLS. Les notifications utilisent la base et les endpoints REST existants; aucun service WebSocket supplémentaire n’est attendu.

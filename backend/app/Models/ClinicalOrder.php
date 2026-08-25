@@ -18,6 +18,7 @@ class ClinicalOrder extends Model
         'result',
         'ordered_at',
         'completed_at',
+        'version',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class ClinicalOrder extends Model
         return [
             'ordered_at' => 'datetime',
             'completed_at' => 'datetime',
+            'version' => 'integer',
         ];
     }
 

@@ -2,38 +2,59 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\AppointmentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\Doctor;
 use App\Models\MedicalRecord;
 use App\Models\Patient;
 use App\Models\User;
+use App\Services\DoctorPatientAccessPolicy;
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly DoctorPatientAccessPolicy $doctorPatientAccess) {}
+
     public function admin(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'months' => ['nullable', 'integer', Rule::in([3, 6, 12])],
         ]);
         $months = $validated['months'] ?? 6;
-        $monthStart = now()->startOfMonth();
-        $periodStart = now()->subMonths($months - 1)->startOfMonth();
-        $periodEnd = now()->endOfMonth();
-        $activity = collect(range($months - 1, 0))->map(function (int $offset) {
-            $start = now()->subMonths($offset)->startOfMonth();
-            $end = (clone $start)->endOfMonth();
+        $timezone = (string) config('app.hospital_timezone', 'UTC');
+        $hospitalNow = CarbonImmutable::now($timezone);
+        $monthStart = $hospitalNow->startOfMonth()->utc();
+        $periods = collect(range($months - 1, 0))->map(function (int $offset) use ($hospitalNow) {
+            $localStart = $hospitalNow->subMonths($offset)->startOfMonth();
 
             return [
-                'label' => $start->translatedFormat('M'),
-                'appointments' => Appointment::whereBetween('scheduled_at', [$start, $end])->count(),
-                'consultations' => MedicalRecord::whereBetween('created_at', [$start, $end])->count(),
+                'label' => $localStart->translatedFormat('M'),
+                'start' => $localStart->utc(),
+                'end' => $localStart->addMonth()->utc(),
             ];
         });
-        $periodAppointments = Appointment::whereBetween('scheduled_at', [$periodStart, $periodEnd]);
+        $periodStart = $periods->first()['start'];
+        $periodEnd = $periods->last()['end'];
+        $appointmentsByMonth = $this->monthlyCounts(Appointment::query(), 'scheduled_at', $periods);
+        $consultationsByMonth = $this->monthlyCounts(
+            MedicalRecord::query()->whereNull('archived_at'),
+            'created_at',
+            $periods
+        );
+
+        $activity = $periods->values()->map(fn (array $period, int $index) => [
+            'label' => $period['label'],
+            'appointments' => $appointmentsByMonth[$index],
+            'consultations' => $consultationsByMonth[$index],
+        ]);
+        $periodAppointments = Appointment::where('scheduled_at', '>=', $periodStart)
+            ->where('scheduled_at', '<', $periodEnd);
         $appointmentStatuses = (clone $periodAppointments)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
@@ -60,8 +81,13 @@ class DashboardController extends Controller
             'active_users' => User::where('is_active', true)->count(),
             'pending_appointments' => Appointment::where('status', 'pending')->count(),
             'completed_appointments' => Appointment::where('status', 'completed')->count(),
-            'appointments_today' => Appointment::whereDate('scheduled_at', today())->count(),
-            'new_patients_this_month' => Patient::where('created_at', '>=', $monthStart)->count(),
+            'appointments_today' => Appointment::whereIn('status', AppointmentStatus::activeValues())
+                ->where('scheduled_at', '>=', $hospitalNow->startOfDay()->utc())
+                ->where('scheduled_at', '<', $hospitalNow->addDay()->startOfDay()->utc())
+                ->count(),
+            'new_patients_this_month' => Patient::where('created_at', '>=', $monthStart)
+                ->where('created_at', '<', $hospitalNow->addMonth()->startOfMonth()->utc())
+                ->count(),
             'active_doctors' => Doctor::where('status', 'active')->count(),
             'doctors_on_leave' => Doctor::where('status', 'leave')->count(),
             'new_doctors_this_month' => Doctor::where('created_at', '>=', $monthStart)->count(),
@@ -85,23 +111,55 @@ class DashboardController extends Controller
 
         $appointments = Appointment::with(['patient.user', 'department'])
             ->where('doctor_id', $doctor->id);
+        $hospitalNow = CarbonImmutable::now((string) config('app.hospital_timezone', 'UTC'));
+        $todayStart = $hospitalNow->startOfDay()->utc();
+        $todayEnd = $hospitalNow->addDay()->startOfDay()->utc();
 
         return response()->json([
-            'appointments_today' => (clone $appointments)->whereDate('scheduled_at', today())->count(),
+            'appointments_today' => (clone $appointments)
+                ->whereIn('status', AppointmentStatus::activeValues())
+                ->where('scheduled_at', '>=', $todayStart)
+                ->where('scheduled_at', '<', $todayEnd)
+                ->count(),
             'pending_appointments' => (clone $appointments)->where('status', 'pending')->count(),
-            'total_patients' => Patient::whereHas('appointments', fn ($query) => $query->where('doctor_id', $doctor->id))->count(),
-            'total_consultations' => MedicalRecord::where('doctor_id', $doctor->id)->count(),
+            'total_patients' => $this->doctorPatientAccess->scopePatients(Patient::query(), $doctor->id, 'identity')->count(),
+            'total_consultations' => MedicalRecord::where('doctor_id', $doctor->id)->whereNull('archived_at')->count(),
             'upcoming_appointments' => (clone $appointments)
+                ->whereIn('status', AppointmentStatus::activeValues())
                 ->where('scheduled_at', '>=', now())
                 ->orderBy('scheduled_at')
                 ->limit(6)
                 ->get(),
-            'recent_consultations' => MedicalRecord::with(['patient.user', 'prescriptions'])
+            'recent_consultations' => MedicalRecord::with(['patient.user', 'prescriptions' => fn ($query) => $query->whereNull('archived_at')])
                 ->where('doctor_id', $doctor->id)
+                ->whereNull('archived_at')
                 ->latest()
                 ->limit(5)
                 ->get(),
         ]);
+    }
+
+    /**
+     * @param  Collection<int, array{label: string, start: CarbonImmutable, end: CarbonImmutable}>  $periods
+     * @return list<int>
+     */
+    private function monthlyCounts(Builder $query, string $column, Collection $periods): array
+    {
+        $bindings = [];
+        $expressions = [];
+
+        foreach ($periods->values() as $index => $period) {
+            $expressions[] = "COALESCE(SUM(CASE WHEN {$column} >= ? AND {$column} < ? THEN 1 ELSE 0 END), 0) AS bucket_{$index}";
+            $bindings[] = $period['start'];
+            $bindings[] = $period['end'];
+        }
+
+        $row = $query->selectRaw(implode(', ', $expressions), $bindings)->first();
+
+        return $periods->keys()
+            ->map(fn (int $index) => (int) $row->getAttribute("bucket_{$index}"))
+            ->values()
+            ->all();
     }
 
     public function patient(Request $request): JsonResponse
@@ -113,12 +171,14 @@ class DashboardController extends Controller
             'next_appointment' => Appointment::with(['doctor.user', 'department'])
                 ->where('patient_id', $patient->id)
                 ->where('scheduled_at', '>=', now())
+                ->whereIn('status', AppointmentStatus::activeValues())
                 ->orderBy('scheduled_at')
                 ->first(),
             'appointments_count' => Appointment::where('patient_id', $patient->id)->count(),
-            'medical_record' => MedicalRecord::with(['doctor.user', 'prescriptions'])
+            'medical_record' => MedicalRecord::with(['doctor.user', 'prescriptions' => fn ($query) => $query->whereNull('archived_at')])
                 ->where('patient_id', $patient->id)
                 ->latest()
+                ->whereNull('archived_at')
                 ->first(),
             'notifications' => $request->user()->notifications()->latest()->limit(5)->get(),
         ]);

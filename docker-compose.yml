@@ -22,6 +22,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
     container_name: smart-hospital-backend
     restart: unless-stopped
     depends_on:
@@ -30,7 +32,6 @@ services:
     environment:
       APP_NAME: Smart Hospital
       APP_ENV: local
-      APP_KEY: base64:gIui+9oPrFOtwY09uNIEOUKoJJLHkdj+Gj8F6jJJxQY=
       APP_DEBUG: "true"
       APP_URL: http://localhost:8001
       FRONTEND_URL: http://localhost:5173
@@ -54,6 +55,7 @@ services:
       - backend-vendor:/var/www/html/vendor
     command: >
       sh -c "composer install --no-interaction &&
+             if [ -z "$$APP_KEY" ]; then php artisan key:generate --force && unset APP_KEY; fi &&
              php artisan config:clear &&
              php artisan migrate --seed --force &&
              php artisan serve --host=0.0.0.0 --port=8000"

@@ -1,8 +1,25 @@
 # Smart Hospital
 
+[![CI](https://github.com/5eef/smart-hospital/actions/workflows/ci.yml/badge.svg)](https://github.com/5eef/smart-hospital/actions/workflows/ci.yml)
+![Laravel 12](https://img.shields.io/badge/Laravel-12-FF2D20?logo=laravel&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=111827)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Plateforme web de gestion hospitalière réunissant, dans une même application sécurisée, les parcours administrateur, médecin et patient.
 
 Smart Hospital centralise les comptes, services hospitaliers, rendez-vous, dossiers médicaux, prescriptions, ordres cliniques, notifications et demandes de modification de profil. Le frontend React consomme une API Laravel protégée par des sessions first-party Laravel Sanctum.
+
+> Projet full-stack réalisé par [**5eef**](https://github.com/5eef) pour démontrer la conception d'une application métier complète : sécurité applicative, règles cliniques, concurrence, tests automatisés et conteneurisation.
+
+## Ce que ce projet démontre
+
+- Une architecture React/Laravel séparant clairement interface, API, services métier et persistance.
+- Des autorisations par rôle et une isolation stricte des données médicales entre médecins et patients.
+- Des workflows métier testés pour les rendez-vous, prescriptions, dossiers médicaux et ordres cliniques.
+- La gestion de concurrence avec transactions, verrous et verrouillage optimiste par version.
+- Une authentification SPA par cookies HttpOnly, CSRF Sanctum, vérification email et rate limiting.
+- Une chaîne qualité reproductible avec PHPUnit, Vitest, ESLint, Composer, npm, Docker et GitHub Actions.
 
 ## Présentation
 
@@ -52,7 +69,7 @@ Les accès cliniques sont filtrés côté serveur. Une désactivation ou un arch
 | Tests backend | PHPUnit 11 |
 | Production | Docker, Docker Compose, Apache, Nginx |
 
-Laravel Reverb reste installé pour une évolution future, mais le broadcasting temps réel est volontairement désactivé en production tant qu’aucun client Echo n’est intégré.
+Les notifications sont persistées en base et exposées par des endpoints REST avec compteur unread_count; aucun serveur WebSocket n’est requis par le frontend actuel.
 
 ## Architecture
 
@@ -61,7 +78,7 @@ smart-hospital/
 ├── backend/
 │   ├── app/                 # Contrôleurs API, modèles, services et middleware
 │   ├── database/            # Migrations et seeders protégés
-│   ├── routes/              # Routes API, web, console et channels
+│   ├── routes/              # Routes API, web et console
 │   ├── tests/               # Tests PHPUnit
 │   └── docker/              # Configuration Apache/PHP
 ├── frontend/
@@ -88,6 +105,7 @@ Le navigateur s’authentifie avec une session Laravel et des cookies HttpOnly. 
 ```powershell
 git clone https://github.com/5eef/smart-hospital.git
 cd smart-hospital
+Copy-Item backend/.env.example backend/.env
 docker compose build
 docker compose up -d
 docker compose ps
@@ -194,6 +212,21 @@ docker compose exec frontend npm run build
 
 Une GitHub Actions CI exécute ces contrôles sur chaque push et pull request. Le backend utilise SQLite en mémoire dans la suite automatisée.
 
+## Test manuel
+
+Un parcours complet et reproductible est disponible dans [docs/MANUAL_TESTING.md](docs/MANUAL_TESTING.md).
+
+Pour une vérification rapide après le démarrage Docker :
+
+1. ouvrir http://localhost:5173 ;
+2. créer un compte patient depuis /register ;
+3. récupérer le lien de vérification dans backend/storage/logs/laravel.log ;
+4. tester la prise puis l'annulation d'un rendez-vous ;
+5. utiliser /forgot-password avec admin@smarthospital.test pour accéder au parcours administrateur local ;
+6. vérifier les parcours médecin, notifications et refus d'accès inter-rôles décrits dans le guide.
+
+Les comptes seedés utilisent volontairement des mots de passe aléatoires. Aucun identifiant secret partagé n'est publié dans ce dépôt.
+
 ## Docker et production
 
 Le compose de développement lance MySQL, Laravel et Vite sur l’interface locale. Le compose de production construit :
@@ -236,19 +269,19 @@ Aucune capture inexistante n’est affichée dans ce README. Les maquettes histo
 - Ajouter monitoring, métriques et alertes de production.
 - Déployer et exercer régulièrement la procédure de backup/restore.
 - Introduire un pipeline CD avec approbation et rollback.
-- Réévaluer Echo/Reverb seulement avec des canaux privés testés côté client.
+- N’introduire un transport temps réel que si un client frontend et des tests d’isolation de canaux sont livrés ensemble.
 - Traiter le découpage du bundle frontend signalé par Vite.
 
 ## Developer
 
-**Youssef Bough** — développeur full-stack
+**5eef** — développeur full-stack
 
 GitHub : [@5eef](https://github.com/5eef)
 
-Email : [bough.youssef@gmail.com](mailto:bough.youssef@gmail.com)
+Portfolio : ce dépôt présente une réalisation complète, de l'analyse métier aux validations Docker et CI.
 
 ## License
 
-Copyright © 2026 Youssef Bough. All rights reserved.
+Ce projet est distribué sous licence [MIT](LICENSE).
 
-This project was created for educational, portfolio and demonstration purposes. No permission is granted to copy, redistribute, resell or commercially exploit the source code without the author's prior authorization.
+Copyright © 2026 **5eef**.

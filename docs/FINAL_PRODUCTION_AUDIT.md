@@ -18,7 +18,7 @@ La baseline était fonctionnelle : 21 tests Laravel (161 assertions), 9 tests Vi
 - réservation sans verrou transactionnel;
 - contrôle de disponibilité rejoué lors d’un simple changement de statut;
 - transitions libres des ordres cliniques;
-- Reverb synchrone exposé sans consommateur frontend;
+- diffusion temps réel synchrone exposée sans consommateur frontend;
 - comptes de démonstration possibles en production;
 - absence de root API/readiness métier;
 - query strings présentes dans les logs Apache;
@@ -37,7 +37,7 @@ La baseline était fonctionnelle : 21 tests Laravel (161 assertions), 9 tests Vi
 - audit métier sans contenu médical;
 - transactions et `lockForUpdate` sur les réservations;
 - contrôle des départements actifs et transitions cliniques terminales;
-- Reverb désactivé en production, notifications DB conservées;
+- surface temps réel inutilisée retirée, notifications DB et endpoints REST conservés;
 - seeders rôles/demo séparés avec garde d’environnement;
 - root API, liveness et readiness;
 - logs Apache sans query string, CSP et Permissions Policy;
@@ -83,7 +83,7 @@ docker compose config / production config / production build
 ## Risques restant
 
 - bundle frontend principal légèrement supérieur à 500 kB avant gzip;
-- Reverb non actif; toute réactivation exige Echo et des tests d’isolation;
+- tout ajout futur de temps réel exige un client complet et des tests d’isolation;
 - HSTS à activer sur le reverse proxy TLS final;
 - rétention légale à valider selon la juridiction;
 - concurrence multi-processus à tester sous charge MySQL réelle.

@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PasswordController;
 use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\ResourceController;
+use App\Support\UserPresenter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -26,8 +27,6 @@ Route::get('/health', fn () => response()->json([
 Route::get('/ready', function () {
     try {
         DB::select('select 1');
-        cache()->put('readiness_probe', true, 10);
-        abort_unless(cache()->get('readiness_probe') === true, 503);
     } catch (Throwable) {
         return response()->json(['status' => 'unavailable'], 503);
     }
@@ -36,23 +35,23 @@ Route::get('/ready', function () {
 });
 
 Route::get('/auth/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-    ->middleware(['signed', 'throttle:6,1'])
+    ->middleware(['signed', 'throttle:verification.resend'])
     ->name('verification.verify');
 
 Route::prefix('auth')->group(function () {
-    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:5,1');
-    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
-    Route::post('/forgot-password', [PasswordController::class, 'forgot'])->middleware('throttle:3,1');
-    Route::post('/reset-password', [PasswordController::class, 'reset'])->middleware('throttle:5,1');
+    Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth.register');
+    Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth.login');
+    Route::post('/forgot-password', [PasswordController::class, 'forgot'])->middleware('throttle:password.forgot');
+    Route::post('/reset-password', [PasswordController::class, 'reset'])->middleware('throttle:password.reset');
     Route::middleware(['auth:sanctum', 'active', 'locale'])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
-        Route::post('/email/verification-notification', [EmailVerificationController::class, 'resend'])->middleware('throttle:3,1');
+        Route::post('/email/verification-notification', [EmailVerificationController::class, 'resend'])->middleware('throttle:verification.resend');
     });
 });
 
 Route::get('/user', function (Request $request) {
-    return response()->json(['user' => \App\Support\UserPresenter::make(
+    return response()->json(['user' => UserPresenter::make(
         $request->user()->load(['role', 'doctor', 'patient'])
     )]);
 })->middleware(['auth:sanctum', 'active', 'verified', 'locale']);
@@ -81,13 +80,16 @@ Route::middleware(['auth:sanctum', 'active', 'verified', 'locale'])->group(funct
     Route::get('/admin/dashboard', [DashboardController::class, 'admin'])->middleware('role:admin');
     Route::get('/doctor/dashboard', [DashboardController::class, 'doctor'])->middleware('role:doctor,admin');
     Route::get('/patient/dashboard', [DashboardController::class, 'patient'])->middleware('role:patient,admin');
-    Route::post('/doctors/{doctor}/reset-password', [ResourceController::class, 'resetDoctorPassword'])->middleware(['role:admin', 'throttle:3,1']);
+    Route::post('/doctors/{doctor}/reset-password', [ResourceController::class, 'resetDoctorPassword'])->middleware(['role:admin', 'throttle:admin.reset-link']);
 
     Route::get('/{model}', [ResourceController::class, 'index'])
         ->whereIn('model', ['departments', 'doctors', 'patients', 'appointments', 'medical-records', 'prescriptions']);
     Route::post('/{model}', [ResourceController::class, 'store'])
         ->whereIn('model', ['departments', 'doctors', 'patients', 'appointments', 'medical-records', 'prescriptions']);
     Route::get('/{model}/{id}', [ResourceController::class, 'show'])
+        ->whereNumber('id')
+        ->whereIn('model', ['departments', 'doctors', 'patients', 'appointments', 'medical-records', 'prescriptions']);
+    Route::patch('/{model}/{id}', [ResourceController::class, 'update'])
         ->whereNumber('id')
         ->whereIn('model', ['departments', 'doctors', 'patients', 'appointments', 'medical-records', 'prescriptions']);
     Route::put('/{model}/{id}', [ResourceController::class, 'update'])

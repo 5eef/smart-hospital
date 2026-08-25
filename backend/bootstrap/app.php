@@ -15,9 +15,6 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    ->withBroadcasting(__DIR__.'/../routes/channels.php', [
-        'middleware' => ['api', 'auth:sanctum', 'active', 'locale'],
-    ])
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
         $trustedProxies = array_values(array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', '')))));

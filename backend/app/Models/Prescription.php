@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Prescription extends Model
 {
-    protected $fillable = ['medical_record_id', 'doctor_id', 'patient_id', 'medication', 'dosage', 'instructions', 'issued_at', 'archived_at'];
+    protected $fillable = ['medical_record_id', 'doctor_id', 'patient_id', 'medication', 'dosage', 'instructions', 'issued_at', 'archived_at', 'version'];
 
     protected function casts(): array
     {

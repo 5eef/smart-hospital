@@ -2,6 +2,7 @@ import { Bell, CheckCheck, Circle, LoaderCircle } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../services/api'
+import { unreadCountFrom } from '../../utils/apiContracts'
 import { apiError, formatDateTime } from '../../utils/formatters'
 
 const typeLabels = {
@@ -32,7 +33,7 @@ export function NotificationMenu({ role, onOpenAdminSettings }) {
         api.get('/notifications/unread'),
       ])
       setNotifications(list.data?.data ?? [])
-      setUnreadCount((unread.data ?? []).length)
+      setUnreadCount(unreadCountFrom(unread.data, list.data))
       setError('')
     } catch (requestError) {
       setError(apiError(requestError, 'Impossible de charger les notifications.'))
@@ -49,7 +50,7 @@ export function NotificationMenu({ role, onOpenAdminSettings }) {
     ]).then(([list, unread]) => {
       if (!active) return
       setNotifications(list.data?.data ?? [])
-      setUnreadCount((unread.data ?? []).length)
+      setUnreadCount(unreadCountFrom(unread.data, list.data))
       setError('')
     }).catch((requestError) => {
       if (active) setError(apiError(requestError, 'Impossible de charger les notifications.'))

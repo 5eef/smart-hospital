@@ -25,6 +25,8 @@ class FinalProductionHardeningTest extends TestCase
 
     public function test_spa_csrf_cookie_is_available_and_stateful_mutations_require_a_token(): void
     {
+        $this->app['env'] = 'local';
+
         $this->get('/sanctum/csrf-cookie')->assertNoContent()->assertCookie('XSRF-TOKEN');
         $this->flushHeaders();
         $this->withHeader('Origin', 'http://localhost:5173')->postJson('/api/auth/login', [
